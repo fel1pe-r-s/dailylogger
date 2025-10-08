@@ -1,4 +1,6 @@
 import http from "node:http";
+import fs from "node:fs";
+
 import { routes } from "./routes.js";
 
 function requestlistener(req, res) {

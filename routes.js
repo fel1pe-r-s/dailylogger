@@ -1,5 +1,33 @@
 import fs from "node:fs";
 let notes = [];
+const NOTES_FILE = "notes.json";
+
+(function loadNotesFromFile() {
+  try {
+    const data = fs.readFileSync(NOTES_FILE);
+    notes = JSON.parse(data);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      notes = [];
+      console.log("array vazio");
+    } else {
+      console.error("Erro ao carrregar notes.json", error.message);
+    }
+  }
+})();
+
+function saveNotesToFile() {
+  const data = JSON.stringify(notes, null, 2);
+
+  fs.writeFile(NOTES_FILE, data, (err) => {
+    if (err) {
+      console.error("Erro ao salvar notas no disco:", err);
+    } else {
+      console.log("Notas salvas em notes.json");
+    }
+  });
+}
+
 export function routes(req, res) {
   if (req.url === "/" && req.method === "GET") {
     fs.readFile("./index.html", (err, data) => {
@@ -10,7 +38,6 @@ export function routes(req, res) {
       }
 
       res.writeHead(200, { "Content-Type": "text/html" });
-      console.log("Requisição Get");
       res.end(data);
     });
   } else if (req.url === "/submit" && req.method === "POST") {
@@ -23,6 +50,7 @@ export function routes(req, res) {
         const newNote = JSON.parse(body);
         newNote.id = Date.now();
         notes.push(newNote);
+        saveNotesToFile();
         res.writeHead(201, {
           "Content-type": "application/json",
         });
@@ -58,6 +86,24 @@ export function routes(req, res) {
       console.log("Requisição Get");
       res.end(data);
     });
+  } else if (req.method === "DELETE" && req.url.startsWith("/notes/")) {
+    const urlParts = req.url.split("/");
+    const idToDelete = parseInt(urlParts[2], 10);
+
+    const noteIndex = notes.findIndex((note) => Number(note.id) === idToDelete);
+
+    if (noteIndex !== -1) {
+      console.log(noteIndex);
+      notes.splice(noteIndex, 1);
+
+      saveNotesToFile();
+      res.writeHead(204, {
+        "Content-Type": "text/plain",
+      });
+
+      res.end();
+    }
+    console.error("não tem notas com esse id " + noteIndex);
   } else {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("404 - pagina não encontrada");
