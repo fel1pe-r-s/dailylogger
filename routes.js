@@ -83,7 +83,17 @@ export function routes(req, res) {
       }
 
       res.writeHead(200, { "Content-Type": "text/plain" });
-      console.log("Requisição Get");
+
+      res.end(data);
+    });
+  } else if (req.url === "/style.css" && req.method === "GET") {
+    fs.readFile("./style.css", (err, data) => {
+      if (err) {
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Erro interno ao carregar css");
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/css" });
       res.end(data);
     });
   } else if (req.method === "DELETE" && req.url.startsWith("/notes/")) {
