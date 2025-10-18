@@ -48,7 +48,21 @@ export function routes(req, res) {
     req.on("end", () => {
       try {
         const newNote = JSON.parse(body);
+        console.log;
+        if (!newNote.content || newNote.content.trim().length === 0) {
+          res.writeHead(400, {
+            "Content-type": "application/json",
+          });
+          res.end(
+            JSON.stringify({
+              status: "error",
+              note: "Conteúdo da nota não pode esta vazio",
+            })
+          );
+          return;
+        }
         newNote.id = Date.now();
+        newNote.timesTamp = new Date().toISOString();
         notes.push(newNote);
         saveNotesToFile();
         res.writeHead(201, {

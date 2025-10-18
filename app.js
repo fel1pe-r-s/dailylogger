@@ -99,10 +99,12 @@ async function sendNote(data) {
 noteForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const noteContent = noteText.value.trim();
-  if (!noteContent) return;
+  if (!noteContent) {
+    alert("notas vazias não são validas");
+    return;
+  }
   const dataToSend = {
     content: noteContent,
-    timesTamp: new Date().toISOString(),
   };
   sendNote(dataToSend);
 });
