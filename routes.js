@@ -47,7 +47,12 @@ export function routes(req, res) {
     });
     req.on("end", () => {
       try {
-        const newNote = JSON.parse(body);
+        const data = JSON.parse(body);
+        const newNote = {
+          id: Date.now(),
+          content: data.content.trim(),
+          timesTamp: new Date().toISOString(),
+        };
         console.log;
         if (!newNote.content || newNote.content.trim().length === 0) {
           res.writeHead(400, {
@@ -61,8 +66,6 @@ export function routes(req, res) {
           );
           return;
         }
-        newNote.id = Date.now();
-        newNote.timesTamp = new Date().toISOString();
         notes.push(newNote);
         saveNotesToFile();
         res.writeHead(201, {

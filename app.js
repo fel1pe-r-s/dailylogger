@@ -4,17 +4,21 @@ const logList = document.getElementById("logList");
 
 async function deleteNote(id) {
   const url = `/notes/${id}`;
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  try {
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
 
-  if (response.status === 204) {
-    updateNotesList();
-  } else {
-    console.error("erro ao deletar a nota " + response.status);
+    if (response.status === 204) {
+      updateNotesList();
+    } else {
+      showNotification("erro ao deletar a nota " + response.status, "error");
+    }
+  } catch (error) {
+    showNotification("erro ao deletar a nota " + error.message, "error");
   }
 }
 
@@ -33,18 +37,23 @@ function attachDeleteListeners() {
 }
 
 async function fetchNotes() {
-  const response = await fetch("/notes", {
-    method: "GET",
-    headers: {
-      "Content-type": "application/json",
-    },
-  });
-  if (response.ok) {
-    return await response.json();
-  }
+  try {
+    const response = await fetch("/notes", {
+      method: "GET",
+      headers: {
+        "Content-type": "application/json",
+      },
+    });
+    if (response.ok) {
+      return await response.json();
+    }
 
-  console.error("Deu ruim na busca de notas");
-  return [];
+    return [];
+  } catch (error) {
+    showNotification("Deu ruim na busca de notas", "error");
+    console.error(error);
+    return [];
+  }
 }
 
 function renderNotes(notes) {
@@ -77,30 +86,44 @@ async function updateNotesList() {
 }
 
 async function sendNote(data) {
-  const response = await fetch("/submit", {
-    method: "POST",
-    headers: {
-      "Content-type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const response = await fetch("/submit", {
+      method: "POST",
+      headers: {
+        "Content-type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
 
-  if (response.ok) {
+    if (!response.ok) {
+      const errorData = await response.json();
+      showNotification(
+        `Falha:${errorData.message || "erro desconhecido"}`,
+        "error"
+      );
+      return;
+    }
+
+    showNotification("Nota salva com sucesso!", "success");
+    updateNotesList();
+
     noteText.value = "";
     console.log("nota registrada");
-    updateNotesList();
-  } else {
-    console.error("erro ao registra nota");
-  }
 
-  return await response.json();
+    return await response.json();
+  } catch (error) {
+    showNotification(
+      `ERRO DE CONEXÃO: Não foi possível alcançar o servidor.`,
+      "error"
+    );
+  }
 }
 
 noteForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const noteContent = noteText.value.trim();
   if (!noteContent) {
-    alert("notas vazias não são validas");
+    showNotification("O conteúdo da nota não pode estar vazio.", "error");
     return;
   }
   const dataToSend = {
@@ -110,3 +133,34 @@ noteForm.addEventListener("submit", (event) => {
 });
 
 document.addEventListener("DOMContentLoaded", updateNotesList);
+
+function showNotification(message, type = "success") {
+  const container = document.getElementById("notification-container");
+  const notification = document.createElement("div");
+
+  notification.classList.add("notification", type);
+  notification.textContent = message;
+
+  container.appendChild(notification);
+
+  void notification.offsetWidth;
+
+  notification.classList.add("show");
+
+  function hideAndRemove() {
+    notification.classList.remove("show");
+
+    setTimeout(() => {
+      notification.remove();
+    }, 500);
+  }
+  setTimeout(hideAndRemove, 4000);
+
+  notification.addEventListener(
+    "click",
+    () => {
+      notification.remove();
+    },
+    { once: true }
+  );
+}
