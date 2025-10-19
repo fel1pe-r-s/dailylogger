@@ -15,7 +15,8 @@ async function deleteNote(id) {
     if (response.status === 204) {
       updateNotesList();
     } else {
-      showNotification("erro ao deletar a nota " + response.status, "error");
+      const erroData = await response.json();
+      showNotification("erro ao deletar a nota " + erroData.status, "error");
     }
   } catch (error) {
     showNotification("erro ao deletar a nota " + error.message, "error");
@@ -55,29 +56,110 @@ async function fetchNotes() {
     return [];
   }
 }
+async function sendEditToAPI(id, newContent) {
+  const url = `/notes/${id}`;
+  const contentToSave = newContent.trim();
+  if (contentToSave.length === 0) {
+    showNotification("O conteúdo da nota não pode ser vazio", "erro");
+    return;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content: contentToSave }),
+    });
+
+    if (!response.ok) {
+      const erroData = await response.json();
+      showNotification(
+        `Falha ao editar: ${erroData.message}|| 'Erro desconhecido'`,
+        "error"
+      );
+    }
+    showNotification("Nota editada com sucesso!", "success");
+    updateNotesList();
+  } catch (error) {
+    showNotification("erro ao editar a nota " + error.message, "error");
+    console.error("Erro de rede durante PUT:", error);
+  }
+}
+
+function enableEditMode(noteId, editButton) {
+  const listItem = editButton.parentElement;
+  const contentSpan = listItem.querySelector(".note-content");
+
+  const currentText = contentSpan.textContent.replace(/\[.*\]\s*/, "").trim();
+
+  const textarea = document.createElement("textarea");
+  textarea.value = currentText;
+  textarea.classList.add("edit-textarea");
+
+  const saveButton = document.createElement("button");
+  saveButton.textContent = "Salvar";
+  saveButton.classList.add("save-edit-btn");
+
+  contentSpan.style.display = "none";
+  editButton.style.display = "none";
+
+  listItem.insertBefore(textarea, contentSpan);
+  listItem.insertBefore(saveButton, editButton);
+
+  saveButton.addEventListener("click", () => {
+    const newContent = textarea.value;
+    sendEditToAPI(noteId, newContent);
+  });
+}
+
+function attachEditListeners() {
+  const editButtons = document.querySelectorAll(".edit-btn");
+
+  editButtons.forEach((button) => {
+    button.addEventListener("click", (event) => {
+      const noteId = event.target.dataset.noteId;
+      if (noteId) {
+        enableEditMode(noteId, event.target);
+      }
+    });
+  });
+}
 
 function renderNotes(notes) {
   logList.innerHTML = "";
 
   notes.forEach((note) => {
     const listItem = document.createElement("li");
-    const date = new Date(note.timesTamp).toLocaleString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const textNode = document.createTextNode(`[${date}]: ${note.content}`);
+    listItem.dataset.noteId = note.id;
 
     const deleteButton = document.createElement("button");
     deleteButton.textContent = "X";
     deleteButton.classList.add("delete-btn");
-
     deleteButton.dataset.noteId = note.id;
-    listItem.appendChild(textNode);
+
+    const editButton = document.createElement("button");
+    editButton.textContent = "Editar";
+    editButton.classList.add("edit-btn");
+    editButton.dataset.noteId = note.id;
+
+    const noteContentSpan = document.createElement("span");
+    const date = new Date(note.timesTamp).toLocaleString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    noteContentSpan.classList.add("note-content");
+    noteContentSpan.innerHTML = `[${date}]: ${note.content}`;
+
+    listItem.appendChild(noteContentSpan);
+    listItem.appendChild(editButton);
     listItem.appendChild(deleteButton);
     logList.appendChild(listItem);
   });
 
   attachDeleteListeners();
+  attachEditListeners();
 }
 
 async function updateNotesList() {

@@ -9,7 +9,7 @@ const NOTES_FILE = "notes.json";
   } catch (error) {
     if (error.code === "ENOENT") {
       notes = [];
-      console.log("array vazio");
+      console.error("array vazio");
     } else {
       console.error("Erro ao carrregar notes.json", error.message);
     }
@@ -53,7 +53,7 @@ export function routes(req, res) {
           content: data.content.trim(),
           timesTamp: new Date().toISOString(),
         };
-        console.log;
+
         if (!newNote.content || newNote.content.trim().length === 0) {
           res.writeHead(400, {
             "Content-type": "application/json",
@@ -78,7 +78,7 @@ export function routes(req, res) {
           })
         );
       } catch (error) {
-        console.log(error);
+        console.error(error);
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
@@ -120,7 +120,6 @@ export function routes(req, res) {
     const noteIndex = notes.findIndex((note) => Number(note.id) === idToDelete);
 
     if (noteIndex !== -1) {
-      console.log(noteIndex);
       notes.splice(noteIndex, 1);
 
       saveNotesToFile();
@@ -128,9 +127,62 @@ export function routes(req, res) {
         "Content-Type": "text/plain",
       });
 
-      res.end();
+      res.end(JSON.stringify(notes[noteIndex]));
+      return;
     }
     console.error("não tem notas com esse id " + noteIndex);
+  } else if (req.method === "PUT" && req.url.startsWith("/notes/")) {
+    const urlParts = req.url.split("/");
+    const idToUpdate = parseInt(urlParts[2], 10);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    console.log(body);
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body);
+        if (!data.content || data.content.trim().length === 0) {
+          res.writeHead(400, { "Content-type": "application/json" });
+          res.end(
+            JSON.stringify({
+              status: "error",
+              message: "O Contreúdo não pode esta vazio",
+            })
+          );
+          return;
+        }
+
+        const noteIndex = notes.findIndex(
+          (note) => Number(note.id) === idToUpdate
+        );
+
+        if (noteIndex !== -1) {
+          notes[noteIndex].content = data.content.trim();
+          notes[noteIndex].timesTamp = Date.now();
+          saveNotesToFile();
+          res.writeHead(200, { "Content-type": "application/json" });
+          res.end(JSON.stringify(notes[noteIndex]));
+        } else {
+          res.writeHead(404, { "Content-type": "application/json" });
+          res.end(
+            JSON.stringify({
+              status: "error",
+              message: "Nota não foi encontada",
+            })
+          );
+        }
+      } catch (error) {
+        console.error("Erro ao processar JSON no PUT:", error.message);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            status: "error",
+            message: "JSON da requisição PUT inválido.",
+          })
+        );
+      }
+    });
   } else {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("404 - pagina não encontrada");
