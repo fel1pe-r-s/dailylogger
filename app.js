@@ -102,15 +102,29 @@ function enableEditMode(noteId, editButton) {
   saveButton.textContent = "Salvar";
   saveButton.classList.add("save-edit-btn");
 
+  const cancelButton = document.createElement("button");
+  cancelButton.textContent = "Cancelar";
+  cancelButton.classList.add("cancel-edit-btn");
+  cancelButton.dataset.noteId = noteId;
+
   contentSpan.style.display = "none";
   editButton.style.display = "none";
 
   listItem.insertBefore(textarea, contentSpan);
   listItem.insertBefore(saveButton, editButton);
+  listItem.insertBefore(cancelButton, editButton);
 
   saveButton.addEventListener("click", () => {
     const newContent = textarea.value;
     sendEditToAPI(noteId, newContent);
+  });
+
+  cancelButton.addEventListener("click", () => {
+    textarea.remove();
+    saveButton.remove();
+    cancelButton.remove();
+    contentSpan.style.display = "";
+    editButton.style.display = "";
   });
 }
 
