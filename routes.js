@@ -1,10 +1,45 @@
 import fs from "node:fs";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = "secret";
+const saltRounds = 10;
+
 let notes = [];
 const NOTES_FILE = "notes.json";
 
+let users = [];
+const USERS_FILE = "users.json";
+
+(function loadUsersFromFile() {
+  try {
+    const data = fs.readFileSync(USERS_FILE, "utf8");
+    users = JSON.parse(data);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      users = [];
+      console.error("array de users vazio");
+    } else {
+      console.error("erro ao carregar usuarios de users.json");
+    }
+  }
+})();
+
+function saveUsersToFile() {
+  const data = JSON.stringify(users, null, 2);
+
+  fs.writeFile(USERS_FILE, data, (err) => {
+    if (err) {
+      console.error("Erro ao salvar users no disco:", err);
+    } else {
+      console.log("Usuario salvo em users.json");
+    }
+  });
+}
+
 (function loadNotesFromFile() {
   try {
-    const data = fs.readFileSync(NOTES_FILE);
+    const data = fs.readFileSync(NOTES_FILE, "utf8");
     notes = JSON.parse(data);
   } catch (error) {
     if (error.code === "ENOENT") {
@@ -39,6 +74,55 @@ export function routes(req, res) {
 
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end(data);
+    });
+  } else if (req.url === "/register" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const { username, password } = JSON.parse(body);
+
+        if (!username || !password) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              message: "Nome de usuário e senha são obrigatórios.",
+            })
+          );
+          return;
+        }
+
+        if (users.some((user) => user.username === username)) {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ message: "Nome de usuário já existe." }));
+          return;
+        }
+
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+        const newUser = {
+          id: Date.now(),
+          username,
+          password: hashedPassword,
+        };
+
+        users.push(newUser);
+        saveUsersToFile();
+
+        res.writeHead(201, { "Content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            id: newUser.id,
+            message: "Usuário regristrado com sucesso",
+          })
+        );
+      } catch (error) {
+        console.error("erro no registro: ", error);
+        res.writeHead(500, { "Content-type": "application/json" });
+        res.end(JSON.stringify({ message: "Erro interno do servidor" }));
+      }
     });
   } else if (req.url === "/submit" && req.method === "POST") {
     let body = "";
