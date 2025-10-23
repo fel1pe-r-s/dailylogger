@@ -2,10 +2,87 @@ const noteForm = document.getElementById("noteForm");
 const noteText = document.getElementById("noteText");
 const logList = document.getElementById("logList");
 
+const TOKEN_KEY = "dailyLoggerToken";
+function saveToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function removeToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+async function handleLogin(username, password) {
+  const data = { username, password };
+
+  try {
+    const response = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      showNotification(
+        `Falha no login ${result.message} || "Erro desconhecido"`,
+        "error"
+      );
+      return;
+    }
+    saveToken(result.token);
+    showNotification("login bem-sucedido!", "success");
+    window.location.reload();
+  } catch (error) {
+    showNotification(
+      `ERRO DE REDE: Não foi possivel conecta ao servidor`,
+      "error"
+    );
+  }
+}
+
+function handleLogout() {
+  removeToken();
+  showNotification("Sessão encerrada.", "success");
+  window.location.reload();
+}
+
+async function authenticationFetch(url, options = {}) {
+  const token = getToken();
+
+  if (!token) {
+    showNotification(
+      "Sessão expirada ou não autenticada. Faça login novamente",
+      "error"
+    );
+    //updateAuthUI()
+    throw new Error("Não autenticado");
+  }
+
+  options.headers = options.headers || {};
+  options.headers["Authorization"] = `Bearer ${token}`;
+
+  const response = await fetch(url, options);
+
+  if (response.status === 401 || response.status === 403) {
+    // removeToken();
+    showNotification(
+      "Sessão inválida ou expirada. Faça login novamente.",
+      "error"
+    );
+    // updateAuthUI();
+  }
+
+  return response;
+}
+
 async function deleteNote(id) {
   const url = `/notes/${id}`;
   try {
-    const response = await fetch(url, {
+    const response = await authenticationFetch(url, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -39,12 +116,13 @@ function attachDeleteListeners() {
 
 async function fetchNotes() {
   try {
-    const response = await fetch("/notes", {
+    const response = await authenticationFetch("/notes", {
       method: "GET",
       headers: {
-        "Content-type": "application/json",
+        "Content-Type": "application/json",
       },
     });
+
     if (response.ok) {
       return await response.json();
     }
@@ -65,7 +143,7 @@ async function sendEditToAPI(id, newContent) {
   }
 
   try {
-    const response = await fetch(url, {
+    const response = await authenticationFetch(url, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -183,7 +261,7 @@ async function updateNotesList() {
 
 async function sendNote(data) {
   try {
-    const response = await fetch("/submit", {
+    const response = await authenticationFetch("/submit", {
       method: "POST",
       headers: {
         "Content-type": "application/json",

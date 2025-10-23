@@ -11,6 +11,27 @@ const NOTES_FILE = "notes.json";
 let users = [];
 const USERS_FILE = "users.json";
 
+function authenticationToken(res, req, callback) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (token == null) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ message: "Acesso negado: Token não fornecido" }));
+    return;
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Tokin Inválido ou expirado" }));
+      return;
+    }
+    req.user = user;
+    callback();
+  });
+}
+
 (function loadUsersFromFile() {
   try {
     const data = fs.readFileSync(USERS_FILE, "utf8");
@@ -124,57 +145,104 @@ export function routes(req, res) {
         res.end(JSON.stringify({ message: "Erro interno do servidor" }));
       }
     });
-  } else if (req.url === "/submit" && req.method === "POST") {
+  } else if (req.method === "POST" && req.url === "/login") {
     let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    req.on("end", () => {
+    req.on("data", (chunk) => (body += chunk.toString()));
+    req.on("end", async () => {
       try {
-        const data = JSON.parse(body);
-        const newNote = {
-          id: Date.now(),
-          content: data.content.trim(),
-          timesTamp: new Date().toISOString(),
-        };
+        const { username, password } = JSON.parse(body);
+        const user = users.find((user) => user.username === username);
 
-        if (!newNote.content || newNote.content.trim().length === 0) {
-          res.writeHead(400, {
+        if (!user) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ message: "Credenciais inválidas" }));
+          return;
+        }
+
+        const passwordMath = await bcrypt.compare(password, user.password);
+
+        if (!passwordMath) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ message: "Credenciais invalidas" }));
+          return;
+        }
+
+        // token
+
+        const payload = { userId: user.id, username: user.username };
+
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: "Login bem-sucedido!", token }));
+      } catch (error) {
+        console.error("Erro no login ", error);
+        res.writeHead(500, { "Content-type": "application/json" });
+        res.end(JSON.stringify({ message: "Erro interno do servidor" }));
+      }
+    });
+  } else if (req.url === "/submit" && req.method === "POST") {
+    const routeHeandle = () => {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk.toString();
+      });
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body);
+          const userId = req.user.userId;
+          const newNote = {
+            id: Date.now(),
+            content: data.content.trim(),
+            timesTamp: new Date().toISOString(),
+            userId,
+          };
+
+          if (!newNote.content || newNote.content.trim().length === 0) {
+            res.writeHead(400, {
+              "Content-type": "application/json",
+            });
+            res.end(
+              JSON.stringify({
+                status: "error",
+                note: "Conteúdo da nota não pode esta vazio",
+              })
+            );
+            return;
+          }
+          notes.unshift(newNote);
+          saveNotesToFile();
+          res.writeHead(201, {
             "Content-type": "application/json",
           });
           res.end(
             JSON.stringify({
-              status: "error",
-              note: "Conteúdo da nota não pode esta vazio",
+              status: "success",
+              note: newNote,
             })
           );
-          return;
+        } catch (error) {
+          console.error(error);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              status: "error",
+              message: "Dados Json inválidos",
+            })
+          );
         }
-        notes.push(newNote);
-        saveNotesToFile();
-        res.writeHead(201, {
-          "Content-type": "application/json",
-        });
-        res.end(
-          JSON.stringify({
-            status: "success",
-            note: newNote,
-          })
-        );
-      } catch (error) {
-        console.error(error);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            status: "error",
-            message: "Dados Json inválidos",
-          })
-        );
-      }
-    });
+      });
+    };
+    authenticationToken(res, req, routeHeandle);
   } else if (req.url === "/notes" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(notes));
+    const routeHeandle = () => {
+      const userId = req.user.userId;
+      const userNotes = notes.filter((note) => note.userId === userId);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(userNotes));
+    };
+
+    authenticationToken(res, req, routeHeandle);
   } else if (req.url === "/app.js" && req.method === "GET") {
     fs.readFile("./app.js", (err, data) => {
       if (err) {
@@ -198,75 +266,94 @@ export function routes(req, res) {
       res.end(data);
     });
   } else if (req.method === "DELETE" && req.url.startsWith("/notes/")) {
-    const urlParts = req.url.split("/");
-    const idToDelete = parseInt(urlParts[2], 10);
+    try {
+      const routeHeandle = () => {
+        const urlParts = req.url.split("/");
+        const idToDelete = parseInt(urlParts[2], 10);
+        const userId = req.user.userId;
 
-    const noteIndex = notes.findIndex((note) => Number(note.id) === idToDelete);
+        const noteIndex = notes.findIndex(
+          (note) => Number(note.id) === idToDelete && note.userId === userId
+        );
 
-    if (noteIndex !== -1) {
-      notes.splice(noteIndex, 1);
+        if (noteIndex === -1) {
+          res.writeHead(404, {
+            "Content-Type": "text/plain",
+          });
 
-      saveNotesToFile();
-      res.writeHead(204, {
-        "Content-Type": "text/plain",
-      });
-
-      res.end(JSON.stringify(notes[noteIndex]));
-      return;
-    }
-    console.error("não tem notas com esse id " + noteIndex);
-  } else if (req.method === "PUT" && req.url.startsWith("/notes/")) {
-    const urlParts = req.url.split("/");
-    const idToUpdate = parseInt(urlParts[2], 10);
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    console.log(body);
-    req.on("end", () => {
-      try {
-        const data = JSON.parse(body);
-        if (!data.content || data.content.trim().length === 0) {
-          res.writeHead(400, { "Content-type": "application/json" });
-          res.end(
-            JSON.stringify({
-              status: "error",
-              message: "O Contreúdo não pode esta vazio",
-            })
-          );
+          res.end(JSON.stringify({ message: "Erro ao localizar a nota" }));
           return;
         }
 
-        const noteIndex = notes.findIndex(
-          (note) => Number(note.id) === idToUpdate
-        );
+        notes.splice(noteIndex, 1);
 
-        if (noteIndex !== -1) {
-          notes[noteIndex].content = data.content.trim();
-          notes[noteIndex].timesTamp = Date.now();
-          saveNotesToFile();
-          res.writeHead(200, { "Content-type": "application/json" });
-          res.end(JSON.stringify(notes[noteIndex]));
-        } else {
-          res.writeHead(404, { "Content-type": "application/json" });
+        saveNotesToFile();
+        res.writeHead(204, {
+          "Content-Type": "text/plain",
+        });
+
+        res.end(JSON.stringify(notes[noteIndex]));
+      };
+      authenticationToken(res, req, routeHeandle);
+    } catch (error) {
+      console.error("não tem notas com esse id " + noteIndex);
+    }
+  } else if (req.method === "PUT" && req.url.startsWith("/notes/")) {
+    const routeHeandle = () => {
+      const urlParts = req.url.split("/");
+      const idToUpdate = parseInt(urlParts[2], 10);
+      let body = "";
+      const userId = req.user.userId;
+      req.on("data", (chunk) => {
+        body += chunk.toString();
+      });
+
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body);
+          if (!data.content || data.content.trim().length === 0) {
+            res.writeHead(400, { "Content-type": "application/json" });
+            res.end(
+              JSON.stringify({
+                status: "error",
+                message: "O Contreúdo não pode esta vazio",
+              })
+            );
+            return;
+          }
+
+          const noteIndex = notes.findIndex(
+            (note) => Number(note.id) === idToUpdate && note.userId === userId
+          );
+
+          if (noteIndex !== -1) {
+            notes[noteIndex].content = data.content.trim();
+            notes[noteIndex].timesTamp = Date.now();
+            saveNotesToFile();
+            res.writeHead(200, { "Content-type": "application/json" });
+            res.end(JSON.stringify(notes[noteIndex]));
+          } else {
+            res.writeHead(404, { "Content-type": "application/json" });
+            res.end(
+              JSON.stringify({
+                status: "error",
+                message: "Nota não foi encontada",
+              })
+            );
+          }
+        } catch (error) {
+          console.error("Erro ao processar JSON no PUT:", error.message);
+          res.writeHead(400, { "Content-Type": "application/json" });
           res.end(
             JSON.stringify({
               status: "error",
-              message: "Nota não foi encontada",
+              message: "JSON da requisição PUT inválido.",
             })
           );
         }
-      } catch (error) {
-        console.error("Erro ao processar JSON no PUT:", error.message);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            status: "error",
-            message: "JSON da requisição PUT inválido.",
-          })
-        );
-      }
-    });
+      });
+    };
+    authenticationToken(res, req, routeHeandle);
   } else {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("404 - pagina não encontrada");
