@@ -212,4 +212,28 @@ margin-right:5px;
 
 }
 
+#auth-from-container{
+  width: 300px;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  text-align: center;
 
+}
+
+#loginForm input{
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+#loginFrom button {
+  width: 100%; 
+  padding: 10px; 
+  margin-bottom: 5px;
+}

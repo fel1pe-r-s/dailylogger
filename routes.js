@@ -11,6 +11,14 @@ const NOTES_FILE = "notes.json";
 let users = [];
 const USERS_FILE = "users.json";
 
+function authToken(userId, username) {
+  const payload = { userId, username };
+
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
+
+  return token;
+}
+
 function authenticationToken(res, req, callback) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -132,10 +140,13 @@ export function routes(req, res) {
         users.push(newUser);
         saveUsersToFile();
 
+        const token = authToken(newUser.id, newUser.username);
+
         res.writeHead(201, { "Content-type": "application/json" });
         res.end(
           JSON.stringify({
             id: newUser.id,
+            token,
             message: "Usuário regristrado com sucesso",
           })
         );
@@ -169,9 +180,7 @@ export function routes(req, res) {
 
         // token
 
-        const payload = { userId: user.id, username: user.username };
-
-        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
+        const token = authToken(user.id, user);
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ message: "Login bem-sucedido!", token }));

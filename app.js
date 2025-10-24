@@ -50,6 +50,28 @@ function handleLogout() {
   window.location.reload();
 }
 
+function updateAuthUI() {
+  const token = getToken();
+  const appContainer = document.getElementById("app-container");
+  const authFormContainer = document.getElementById("auth-form-container");
+  const authStatus = document.getElementById("auth-status");
+
+  if (token) {
+    appContainer.style.display = "block";
+    authFormContainer.style.display = "none";
+
+    authStatus.innerHTML = `<button id="logoutBtn">Sair</button>`;
+    document
+      .getElementById("logoutBtn")
+      .addEventListener("click", handleLogout);
+    updateNotesList();
+  } else {
+    appContainer.style.display = "none";
+    authFormContainer.style.display = "block";
+    authStatus.innerHTML = "Você precisa entrar para acessar suas notas.";
+  }
+}
+
 async function authenticationFetch(url, options = {}) {
   const token = getToken();
 
@@ -58,7 +80,7 @@ async function authenticationFetch(url, options = {}) {
       "Sessão expirada ou não autenticada. Faça login novamente",
       "error"
     );
-    //updateAuthUI()
+    updateAuthUI();
     throw new Error("Não autenticado");
   }
 
@@ -68,12 +90,12 @@ async function authenticationFetch(url, options = {}) {
   const response = await fetch(url, options);
 
   if (response.status === 401 || response.status === 403) {
-    // removeToken();
+    removeToken();
     showNotification(
       "Sessão inválida ou expirada. Faça login novamente.",
       "error"
     );
-    // updateAuthUI();
+    updateAuthUI();
   }
 
   return response;
@@ -200,6 +222,7 @@ function enableEditMode(noteId, editButton) {
   cancelButton.addEventListener("click", () => {
     textarea.remove();
     saveButton.remove();
+    authenticationToken;
     cancelButton.remove();
     contentSpan.style.display = "";
     editButton.style.display = "";
@@ -259,7 +282,7 @@ async function updateNotesList() {
   renderNotes(notes);
 }
 
-async function sendNote(data) {
+async function handleSubmit(data) {
   try {
     const response = await authenticationFetch("/submit", {
       method: "POST",
@@ -272,7 +295,7 @@ async function sendNote(data) {
     if (!response.ok) {
       const errorData = await response.json();
       showNotification(
-        `Falha:${errorData.message || "erro desconhecido"}`,
+        `Falha:${errorData.message || "erro authenticationTokendesconhecido"}`,
         "error"
       );
       return;
@@ -303,10 +326,47 @@ noteForm.addEventListener("submit", (event) => {
   const dataToSend = {
     content: noteContent,
   };
-  sendNote(dataToSend);
+  handleSubmit(dataToSend);
 });
 
-document.addEventListener("DOMContentLoaded", updateNotesList);
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const username = document.getElementById("loginUsername").value;
+  const password = document.getElementById("loginPassword").value;
+  await handleLogin(username, password);
+});
+
+document.getElementById("registerBtn").addEventListener("click", async () => {
+  const username = "novo" + Date.now();
+  const password = "123";
+  const data = { username, password };
+  showNotification(
+    "Usuário registrado (verifique o console para rota /register",
+    "success"
+  );
+  const response = await fetch("/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  const result = await response.json();
+  if (!response.ok) {
+    showNotification(
+      `Falha no login ${result.message} || "Erro desconhecido"`,
+      "error"
+    );
+    return;
+  }
+
+  saveToken(result.token);
+  showNotification("Login efetuado com sucesso", "success");
+  window.location.reload();
+});
+
+// document.addEventListener("DOMContentLoaded", updateAuthUI);
 
 function showNotification(message, type = "success") {
   const container = document.getElementById("notification-container");
@@ -338,3 +398,5 @@ function showNotification(message, type = "success") {
     { once: true }
   );
 }
+
+updateAuthUI();

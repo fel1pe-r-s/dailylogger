@@ -3,23 +3,38 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="./style.css">
-    <title>Dailyloogger - V1</title>
+    <title>Dailyloogger - V6 - Autenticação</title>
 </head>
 
 <body>
-    <h1>Novo Resgistro Diário</h1>
-    <form id="noteForm">
-        <textarea id="noteText" placeholder="O que aconteceu hoje?" rows="4" required></textarea>
-        <br>
-        <button type="submit">Registra Nota</button>
-    </form>
     <div id="notification-container"></div>
-    <h2>Registros Anteriores</h2>
-    <ul id="logList">
+    <header>
+        <h1>DailyLogger</h1>
+        <div id="auth-status"></div>
+    </header>
+    <div id="auth-form-container">
+        <h2>Acesso</h2>
+        <form id="loginForm">
+            <input type="text" id="loginUsername" placeholder="Usuário" required>
+            <input type="password" id="loginPassword" placeholder="Senha" required>
+            <button type="submit">Entra</button>
+            <button type="button" id="registerBtn">Registrar (Usuário: 'teste', Senha: '123')</button>
+        </form>
+    </div>
+    <div id="app-container" style="display: none;">
+        <h1>Novo Resgistro Diário</h1>
+        <form id="noteForm">
+            <textarea id="noteText" placeholder="O que aconteceu hoje?" rows="4" required></textarea>
+            <br>
+            <button type="submit">Registra Nota</button>
+        </form>
+        <h2>Registros Anteriores</h2>
+        <ul id="logList">
 
-    </ul>
+        </ul>
+    </div>
     <script src="./app.js"></script>
 </body>
 
